@@ -6,7 +6,7 @@ Back end is Vuejs.
 
 ## Deployed Application
 
-You can find the deployed app [here](https://birds.smbtraining.com/bird_name) 
+You can find the deployed app [here](https://birds.smbtraining.com/bird_name){:target="_blank"}
 
 ## Deployment
 
