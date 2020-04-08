@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html>
+  <head>
+  <title>Bird picture identifier</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootswatch/4.3.1/darkly/bootstrap.css">
+  <script src="https://npmcdn.com/vue/dist/vue.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  <script type="text/javascript" src="birds-url.js"></script>
+  <style>
+  img {
+    cursor: url('delete.png'), auto;
+    max-width: 500px;
+    height: auto;
+    margin: 25px;
+  }
+  .red--text {
+    color: red;
+  }
+  div.birdlist {
+  height: 110px;
+  overflow: auto;
+  }
+  .table th, .table td {
+    border-top: none;
+    padding: 0.15rem;
+    cursor: crosshair;
+  }
+  td.selected {
+    background: #375a7f;
+  }
+  hr {
+    border-top: 1px solid white;
+  }
+  #scroll::-webkit-scrollbar-track
+  {
+    -webkit-box-shadow: inset 0 0 6px rgba(0,0,0,0.3);
+    border-radius: 10px;
+    background-color: #F5F5F5;
+  }
+
+  #scroll::-webkit-scrollbar
+  {
+    width: 12px;
+    background-color: #F5F5F5;
+  }
+
+  #scroll::-webkit-scrollbar-thumb
+  {
+    border-radius: 10px;
+    -webkit-box-shadow: inset 0 0 6px rgba(0,0,0,.3);
+    background-color: #375a7f;
+  }
+  </style>
+  </head>
+  <body>
+  <br/>
+  <div id="app" class="container">
+    <div class="row  justify-content-center">
+      <div class="col-xs-12 col-sm-8 col-sm-offset-2 col-md-6 col-md-offset-3">
+      <div class="card border-dark mb-3">
+        <h3 class="card-header">Bird identifier</h3>
+          <div class="card-body">
+            <p class="card-text">Bird picture recognition CNN model from resnet50 using the fastai2 library.  Picture can be provided as URL or from your local drive.</p>
+            <p class="card-text">Model trained with this Kaggle data set: <a href="https://www.kaggle.com/gpiosenka/100-bird-species" target="_blank">150-bird-species</a></p>
+            <p class="card-text">Selecting a bird species in the searchable input below will populate a sample URL.</p>
+            <label class="text-info">Bird Species (<%= scalar($birds->@*) %>)</label>
+            <input type="search" class="light-table-filter form-control" data-table="order-table" placeholder="Filter">
+            <div id="scroll" class="birdlist">
+              <table class="order-table table">
+                <tbody>
+                  % for my $row ($birds->@*) {
+                      <tr>
+                      <td @click="insertURL"><%= $row %></td>
+                      </tr>
+                  %}
+                </tbody>
+              </table>
+            </div>
+            <hr>
+            <br/>
+            <p class="card-text">Images and results will be aggregated below, click on any image to delete it from the output.</p>
+            <p class="card-text">Toggle switch below to change between URL mode and upload mode.</p>
+            <div class="custom-control custom-switch">
+              <input type="checkbox" class="custom-control-input" id="customSwitch1" v-model="uploadChecked" @change="modeChange">
+              <label class="custom-control-label" for="customSwitch1">Upload bird image file to server</label>
+            </div>
+            <br/><br/>
+            <h4 class="card-title">{{title}}</h4>
+            <div v-if="!uploadChecked">
+              <label class="text-info">Bird image URL</label>
+              <input class="form-control" :class="redText ? 'red--text' : ''" type="search" v-model="textUrl" @keyup="disableURL=false" @change="new_url">
+              <br/><br/>
+              <button class="btn btn-primary" @click="processForm" :disabled="disableURL">{{ buttonText}}</button>
+            </div>
+            <div v-else class="form-group">
+              <div class="custom-file">
+                <input type="file" class="custom-file-input" id="inputGroupFile01"
+                  aria-describedby="inputGroupFileAddon01" @change="handleFileUpload">
+                <label class="custom-file-label" for="inputGroupFile01">{{fileInputText}}</label>
+              </div>
+              <br/><br/><br/>
+              <button class="btn btn-primary" @click="submitFile()" :disabled="disableUpload">Get bird name</button>
+            </div>
+          </div>
+        </div>
+        <br/>
+        <div v-if="!uploadChecked">
+          <div>
+            <br/>
+            <div v-for="(img, i) in imageUrl" :key="i">
+              <h4 align="center">{{ predictions[i] }}</h4>
+              <img :src="img" @click="deleteImage(i, 'url')" @error="image_error">
+            </div>
+          </div>
+        </div>
+        <div v-else class="form-group">
+          <br/>
+          <div v-if="uploadImages">
+            <div v-for="(img, i) in uploadImages" :key="i">
+              <h4 align="center">{{ predictUpload[i] }}</h4>
+              <img :src="img" @click="deleteImage(i, 'upload')"/>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+  vm = new Vue({
+    el: '#app',
+    data: {
+      title: 'Enter URL for bird image',
+      imageUrl: [],
+      uploadImages: [],
+      predictions: [],
+      predictUpload: [],
+      textUrl: '',
+      buttonText: 'Verify image',
+      fileInputText: 'Choose bird image from you computer',
+      uploadChecked: false,
+      file: '',
+      imageSave: '',
+      disableUpload: true,
+      disableURL: true,
+      redText: false,
+      active: undefined,
+    },
+
+    methods: {
+      // function to process classification by URL
+      processForm() {
+        this.textUrl = this.textUrl.trim();
+        switch(this.buttonText) {
+          case 'Verify image':
+            // validate url
+            if (!this.is_url(this.textUrl)) {
+              this.redText = true;
+              return;
+            } else {
+              this.redText = false;
+            }
+            this.imageUrl.unshift('loader.gif');
+            this.predictions.unshift('');
+            setTimeout(() => {this.imageUrl.splice(0,1,this.textUrl)},1000);
+            this.buttonText = 'Get bird name';
+            this.disableURL = false;
+            break;
+          case 'Get bird name':
+            this.imageUrl.splice(0,1,'mattrix_loader.gif'); 
+            axios.post('from_url', {imageUrl: this.textUrl})
+            .then(response => {
+              this.predictions.splice(0,1,this.getPred(response.data.predictions));
+              this.imageUrl.splice(0,1,this.textUrl);
+              this.buttonText = 'Verify image'
+              this.disableURL = true;
+            })
+            .catch(error => {
+              console.log(error);
+              this.imageUrl.splice(0,1,this.textUrl);
+              this.disableURL = true;
+              this.predictions.unshift('Error processing image, invalid image');
+            });
+          break;
+        }
+      },
+      // build prediction string from pred data
+      getPred(preds) {
+        let percent = Math.round(parseFloat(preds[0][1]) * 100);
+        //let percent2 = Math.round(parseFloat(preds[1][1]) * 100);
+        //return preds[0][0] + " " + percent + '%' + ' | ' + preds[1][0] + " " + percent2 + '%';
+        return preds[0][0] + " " + percent + '%';
+      },
+      // delete image from output
+      deleteImage(index, mode) {
+        if (mode === 'url') {
+          this.imageUrl.splice(index,1);
+          this.predictions.splice(index,1);
+          this.disableUpload = true;
+        } else {
+          this.uploadImages.splice(index,1);
+          this.predictUpload.splice(index,1);
+          this.disableURL = true;
+        }
+      },
+      // display error if URL issue
+      image_error() {
+        this.predictions[0] = 'Invalid image URL...';
+        this.redText = true;
+        this.buttonText = 'Verify image';
+      },
+      // URL textbox new text event
+      new_url() {
+        this.buttonText = 'Verify image';
+        this.disableURL = false;
+      },
+      // mode switch toggled, parse image URL vs upload image
+      modeChange() {
+        this.title = this.uploadChecked ? 'Upload bird image' : 'Enter URL for bird image';
+      },
+      // process input file event
+      handleFileUpload(e) {
+        var files = e.target.files || e.dataTransfer.files;
+        if (!files.length)
+          return;
+        this.createImage(files[0]);
+        this.file = files[0];
+        this.fileInputText = this.file.name;
+      },
+      // create image from file name
+      createImage(file) {
+        var image = new Image();
+        var reader = new FileReader();
+        var vm = this;
+
+        reader.onload = (e) => {
+          // push new image on stack with empty prediction
+          vm.uploadImages.unshift(e.target.result);
+          vm.predictUpload.unshift('');
+          this.disableUpload = false;
+        };
+        reader.readAsDataURL(file);
+      },
+      // submit uploaded file bytes to python service to get prediction
+      submitFile() {
+        this.imageSave = this.uploadImages[0];
+        this.uploadImages.splice(0,1,'mattrix_loader.gif');
+        let formData = new FormData();
+        formData.append('target', this.file);
+        axios.post( 'upload',
+        formData,
+        {
+          headers: {'Content-Type': 'multipart/form-data'}
+        }
+        ).then(response => {
+          this.predictUpload.splice(0,1,this.getPred(response.data.predictions));
+          this.disableUpload = true;
+          this.uploadImages.splice(0,1,this.imageSave);
+        })
+        .catch(error => {
+          console.log(error);
+        });
+      },
+      // validate URL
+      is_url(str)
+        {
+          regexp =  /^(?:(?:https?|ftp):\/\/)?(?:(?!(?:10|127)(?:\.\d{1,3}){3})(?!(?:169\.254|192\.168)(?:\.\d{1,3}){2})(?!172\.(?:1[6-9]|2\d|3[0-1])(?:\.\d{1,3}){2})(?:[1-9]\d?|1\d\d|2[01]\d|22[0-3])(?:\.(?:1?\d{1,2}|2[0-4]\d|25[0-5])){2}(?:\.(?:[1-9]\d?|1\d\d|2[0-4]\d|25[0-4]))|(?:(?:[a-z\u00a1-\uffff0-9]-*)*[a-z\u00a1-\uffff0-9]+)(?:\.(?:[a-z\u00a1-\uffff0-9]-*)*[a-z\u00a1-\uffff0-9]+)*(?:\.(?:[a-z\u00a1-\uffff]{2,})))(?::\d{2,5})?(?:\/\S*)?$/;
+            if (regexp.test(str))
+            {
+              return true;
+            }
+            else
+            {
+              return false;
+            }
+        },
+      // insert URL into url entry box from bird selection
+      insertURL(e) {
+        let url = birdUrl[e.srcElement.innerText];
+        this.textUrl = url;
+        this.disableURL = false;
+        if (this.active) {
+          this.active.classList.remove("selected");
+        }
+        this.active = e.target;
+        e.target.classList.add("selected");
+      }
+    }
+  });
+  // vanilla javascript search bird list filter
+  (function(document) {
+	'use strict';
+
+	var LightTableFilter = (function(Arr) {
+
+		var _input;
+
+		function _onInputEvent(e) {
+			_input = e.target;
+			var tables = document.getElementsByClassName(_input.getAttribute('data-table'));
+			Arr.forEach.call(tables, function(table) {
+				Arr.forEach.call(table.tBodies, function(tbody) {
+					Arr.forEach.call(tbody.rows, _filter);
+				});
+			});
+		}
+
+		function _filter(row) {
+			var text = row.textContent.toLowerCase(), val = _input.value.toLowerCase();
+			row.style.display = text.indexOf(val) === -1 ? 'none' : 'table-row';
+		}
+
+		return {
+			init: function() {
+				var inputs = document.getElementsByClassName('light-table-filter');
+				Arr.forEach.call(inputs, function(input) {
+					input.oninput = _onInputEvent;
+				});
+			}
+		};
+	})(Array.prototype);
+
+	document.addEventListener('readystatechange', function() {
+		if (document.readyState === 'complete') {
+			LightTableFilter.init();
+		}
+	});
+  })(document);
+  </script>
+</body>
+</html>
