@@ -1,4 +1,4 @@
-# fastai2-bird-classifier
+# fastai2 bird classifier
 
 Bird classifier web app with the new fastai2 library.
 Front end is my favorite web framework [Mojolicious](https://www.mojolicious.org/).
