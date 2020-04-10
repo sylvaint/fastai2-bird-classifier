@@ -22,6 +22,7 @@ Instructions should be almost the same for any linux server or for MACOS.
 * aiohttp library
 * Perl
 * Mojolicous Web framework
+* Your model pkl file in the root directory of the app
 
 
 ```
