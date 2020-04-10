@@ -1,8 +1,8 @@
 # fastai2 bird classifier
 
 Bird classifier web app with the new fastai2 library.
-Front end is my favorite web framework [Mojolicious](https://www.mojolicious.org/).
-Back end is Vuejs.
+Back end is my favorite web framework [Mojolicious](https://www.mojolicious.org/).
+Front end is Vuejs.
 
 ## Deployed Application
 
